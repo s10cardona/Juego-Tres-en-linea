@@ -1,0 +1,4 @@
+XOX  O   
+Jugador 1,X
+Jugador 2,O
+X
