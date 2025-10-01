@@ -1,4 +1,3 @@
-// Juego.cpp  (reemplaza tu archivo actual por este)
 #include "Juego.h"
 #include <iostream>
 #include <fstream>
@@ -6,129 +5,141 @@
 
 using namespace std;
 
- // Constructor
 Juego::Juego(const std::string &archivo) {
     tablero = new Tablero();
-    jugadores[0] = 'X';
-    jugadores[1] = 'O';
-    turnoIndice = 0;
-    turnoPtr = &jugadores[turnoIndice];
+    jugador1 = new Jugador("Jugador 1", 'X');
+    jugador2 = new Jugador("Jugador 2", 'O');
+    turnoActual = jugador1;  // Comienza el jugador 1
     archivoGuardado = archivo;
 }
 
-// Destructor
 Juego::~Juego() {
     delete tablero;
+    delete jugador1;
+    delete jugador2;
 }
 
-// Guarda el estado actual (usa serializar() de Tablero)
 bool Juego::guardar() {
     ofstream out(archivoGuardado);
-    if (!out.is_open()) {
-        return false;
-    }
-    string s = tablero->serializar(); // 9 chars
-    out << s << "\n";
-    out << *turnoPtr << "\n";
+    if (!out.is_open()) return false;
+    out << tablero->serializar() << "\n";
+    out << turnoActual->getSimbolo() << "\n";
     out.close();
     return true;
 }
 
-// Carga estado si existe el archivo; devuelve true si pudo cargar
 bool Juego::cargar() {
     ifstream in(archivoGuardado);
     if (!in.is_open()) return false;
-    string s;
-    string turnoLine;
+
+    string s, turnoLine;
     if (!getline(in, s)) { in.close(); return false; }
     if (!getline(in, turnoLine)) { in.close(); return false; }
     in.close();
 
-    // restaurar tablero y turno
     tablero->deserializar(s);
-    if (turnoLine.size() > 0 && (turnoLine[0] == 'X' || turnoLine[0] == 'O')) {
-        if (turnoLine[0] == jugadores[0]) turnoIndice = 0;
-        else turnoIndice = 1;
-        turnoPtr = &jugadores[turnoIndice];
-        return true;
-    }
-    return false;
+
+    if (turnoLine[0] == jugador1->getSimbolo())
+        turnoActual = jugador1;
+    else
+        turnoActual = jugador2;
+
+    return true;
 }
 
-// Bucle principal del juego
 void Juego::jugar() {
-    cout << "Bienvenido al Triqui (dos jugadores)\n";
-    cout << "Se guardara automaticamente despues de cada movimiento.\n";
-    cout << "Para salir y guardar en cualquier momento escribe 0 en lugar de posicion.\n\n";
+    int opcion;
+    bool salir = false;
 
-    // intentar cargar partida guardada (si existe)
-    if (cargar()) {
-        cout << "Se encontro una partida guardada. ¿Deseas continuarla? (s/n): ";
-        char resp;
-        cin >> resp;
-        cin.ignore(numeric_limits<streamsize>::max(), '\n');
-        if (resp != 's' && resp != 'S') {
-            // reiniciar tablero
-            delete tablero;
-            tablero = new Tablero();
-            turnoIndice = 0;
-            turnoPtr = &jugadores[turnoIndice];
-            guardar(); // guardar tablero limpio
-            cout << "Partida nueva iniciada.\n\n";
-        } else {
-            cout << "Continuando la partida guardada.\n\n";
-        }
-    } else {
-        // no habia guardado, creamos archivo base
-        guardar();
-    }
+    while (!salir) {
+        cout << "\n=== MENU PRINCIPAL ===\n";
+        cout << "1. Nueva partida\n";
+        cout << "2. Continuar partida\n";
+        cout << "3. Reiniciar partida\n";
+        cout << "4. Salir\n";
+        cout << "Seleccione una opcion: ";
+        cin >> opcion;
 
-    char ganador = ' ';
-    while (true) {
-        tablero->mostrar();
-        cout << "Turno del jugador " << *turnoPtr << ". Ingresa posicion (1-9) o 0 para guardar y salir: ";
-
-        int pos;
-        if (!(cin >> pos)) {
+        if (cin.fail()) {
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
-            cout << "Entrada invalida. Intenta con un numero entre 1 y 9 (o 0 para salir).\n";
+            cout << "Entrada invalida.\n";
             continue;
         }
 
-        if (pos == 0) {
-            if (guardar()) cout << "Partida guardada. Puedes volver luego y continuar.\n";
-            else cout << "No se pudo guardar la partida.\n";
+        switch (opcion) {
+        case 1:
+            delete tablero;
+            tablero = new Tablero();
+            turnoActual = jugador1;
             break;
-        }
-
-        // usar colocarFichaPos (1..9) que existe en Tablero.h
-        if (!tablero->colocarFichaPos(pos, *turnoPtr)) {
-            cout << "Movimiento invalido (posicion fuera de rango o ya ocupada). Intenta de nuevo.\n\n";
+        case 2:
+            if (!cargar()) {
+                cout << "No se pudo cargar partida. Iniciando nueva.\n";
+                delete tablero;
+                tablero = new Tablero();
+                turnoActual = jugador1;
+            }
+            break;
+        case 3:
+            delete tablero;
+            tablero = new Tablero();
+            turnoActual = jugador1;
+            cout << "Partida reiniciada.\n";
+            break;
+        case 4:
+            salir = true;
+            continue;
+        default:
+            cout << "Opcion invalida.\n";
             continue;
         }
 
-        // guardar progreso despues de cada movimiento
-        if (!guardar()) cout << "Advertencia: no se pudo guardar el progreso.\n";
-
-        // comprobar ganador y empate
-        ganador = tablero->verificarGanador();
-        if (ganador != ' ') {
+        // Bucle del juego
+        while (true) {
             tablero->mostrar();
-            cout << "¡El jugador " << ganador << " ha ganado! Felicidades.\n";
-            break;
-        }
+            cout << "Turno de " << turnoActual->getNombre()
+                 << " (" << turnoActual->getSimbolo() << ")\n";
+            cout << "Ingrese una posicion (1-9) o 0 para salir: ";
+            int pos;
+            cin >> pos;
 
-        if (tablero->tableroLleno()) {
-            tablero->mostrar();
-            cout << "¡Empate! No hay mas movimientos posibles.\n";
-            break;
-        }
+            if (cin.fail()) {
+                cin.clear();
+                cin.ignore(numeric_limits<streamsize>::max(), '\n');
+                cout << "Entrada invalida.\n";
+                continue;
+            }
 
-        // cambiar turno
-        turnoIndice = (turnoIndice + 1) % 2;
-        turnoPtr = &jugadores[turnoIndice];
+            if (pos == 0) {
+                if (guardar()) cout << "Partida guardada.\n";
+                else cout << "No se pudo guardar la partida.\n";
+                break;
+            }
+
+            if (!tablero->colocarFichaPos(pos, turnoActual->getSimbolo())) {
+                cout << "Movimiento invalido. Intente de nuevo.\n";
+                continue;
+            }
+
+            char ganador = tablero->verificarGanador();
+            if (ganador != ' ') {
+                tablero->mostrar();
+                cout << "¡Ganador: " << turnoActual->getNombre()
+                     << " (" << turnoActual->getSimbolo() << ")!\n";
+                break;
+            }
+
+            if (tablero->tableroLleno()) {
+                tablero->mostrar();
+                cout << "Empate.\n";
+                break;
+            }
+
+            // Cambiar turno
+            turnoActual = (turnoActual == jugador1) ? jugador2 : jugador1;
+        }
     }
-
-    cout << "Gracias por jugar.\n";
 }
+
+
