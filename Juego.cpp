@@ -22,8 +22,19 @@ Juego::~Juego() {
 bool Juego::guardar() {
     ofstream out(archivoGuardado);
     if (!out.is_open()) return false;
+
+    // Guardar tablero
     out << tablero->serializar() << "\n";
+
+    // Guardar jugador1
+    out << jugador1->getNombre() << "," << jugador1->getSimbolo() << "\n";
+
+    // Guardar jugador2
+    out << jugador2->getNombre() << "," << jugador2->getSimbolo() << "\n";
+
+    // Guardar turno actual
     out << turnoActual->getSimbolo() << "\n";
+
     out.close();
     return true;
 }
@@ -32,18 +43,36 @@ bool Juego::cargar() {
     ifstream in(archivoGuardado);
     if (!in.is_open()) return false;
 
-    string s, turnoLine;
-    if (!getline(in, s)) { in.close(); return false; }
-    if (!getline(in, turnoLine)) { in.close(); return false; }
-    in.close();
+    string s, j1line, j2line, turnoLine;
 
+    // 1. Tablero
+    if (!getline(in, s)) { in.close(); return false; }
     tablero->deserializar(s);
 
+    // 2. Jugador 1
+    if (!getline(in, j1line)) { in.close(); return false; }
+    size_t coma1 = j1line.find(',');
+    if (coma1 != string::npos) {
+        jugador1->setNombre(j1line.substr(0, coma1));
+        jugador1->setSimbolo(j1line[coma1 + 1]);
+    }
+
+    // 3. Jugador 2
+    if (!getline(in, j2line)) { in.close(); return false; }
+    size_t coma2 = j2line.find(',');
+    if (coma2 != string::npos) {
+        jugador2->setNombre(j2line.substr(0, coma2));
+        jugador2->setSimbolo(j2line[coma2 + 1]);
+    }
+
+    // 4. Turno actual
+    if (!getline(in, turnoLine)) { in.close(); return false; }
     if (turnoLine[0] == jugador1->getSimbolo())
         turnoActual = jugador1;
     else
         turnoActual = jugador2;
 
+    in.close();
     return true;
 }
 
@@ -141,5 +170,6 @@ void Juego::jugar() {
         }
     }
 }
+
 
 
