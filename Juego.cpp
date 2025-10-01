@@ -1,103 +1,134 @@
+// Juego.cpp  (reemplaza tu archivo actual por este)
 #include "Juego.h"
 #include <iostream>
 #include <fstream>
+#include <limits>
+
 using namespace std;
 
-// Constructor
-Juego::Juego(const string& archivo) {
-    tablero = new Tablero(); // creamos tablero en memoria dinámica
-    jugadorActual = 'X';     // inicia siempre X
+ // Constructor
+Juego::Juego(const std::string &archivo) {
+    tablero = new Tablero();
+    jugadores[0] = 'X';
+    jugadores[1] = 'O';
+    turnoIndice = 0;
+    turnoPtr = &jugadores[turnoIndice];
     archivoGuardado = archivo;
-    cargarPartida();         // intentamos cargar guardado
 }
 
 // Destructor
 Juego::~Juego() {
-    delete tablero; // liberar memoria del tablero
+    delete tablero;
 }
 
-// Cargar partida desde archivo
-void Juego::cargarPartida() {
-    ifstream file(archivoGuardado);
-    if (file.is_open()) {
-        char c;
-        int i = 0;
-        while (file >> c && i < 9) {
-            if (c == 'X' || c == 'O' || c == ' ')
-                tablero->setCelda(i, c);
-            i++;
-        }
-        file >> jugadorActual; // cargar turno del jugador
-        file.close();
+// Guarda el estado actual (usa serializar() de Tablero)
+bool Juego::guardar() {
+    ofstream out(archivoGuardado);
+    if (!out.is_open()) {
+        return false;
+    }
+    string s = tablero->serializar(); // 9 chars
+    out << s << "\n";
+    out << *turnoPtr << "\n";
+    out.close();
+    return true;
+}
 
-        cout << "\nSe encontro una partida guardada. "
-             << "¿Deseas continuarla? (s/n): ";
-        char opcion;
-        cin >> opcion;
-        if (opcion == 'n' || opcion == 'N') {
+// Carga estado si existe el archivo; devuelve true si pudo cargar
+bool Juego::cargar() {
+    ifstream in(archivoGuardado);
+    if (!in.is_open()) return false;
+    string s;
+    string turnoLine;
+    if (!getline(in, s)) { in.close(); return false; }
+    if (!getline(in, turnoLine)) { in.close(); return false; }
+    in.close();
+
+    // restaurar tablero y turno
+    tablero->deserializar(s);
+    if (turnoLine.size() > 0 && (turnoLine[0] == 'X' || turnoLine[0] == 'O')) {
+        if (turnoLine[0] == jugadores[0]) turnoIndice = 0;
+        else turnoIndice = 1;
+        turnoPtr = &jugadores[turnoIndice];
+        return true;
+    }
+    return false;
+}
+
+// Bucle principal del juego
+void Juego::jugar() {
+    cout << "Bienvenido al Triqui (dos jugadores)\n";
+    cout << "Se guardara automaticamente despues de cada movimiento.\n";
+    cout << "Para salir y guardar en cualquier momento escribe 0 en lugar de posicion.\n\n";
+
+    // intentar cargar partida guardada (si existe)
+    if (cargar()) {
+        cout << "Se encontro una partida guardada. ¿Deseas continuarla? (s/n): ";
+        char resp;
+        cin >> resp;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        if (resp != 's' && resp != 'S') {
             // reiniciar tablero
             delete tablero;
             tablero = new Tablero();
-            jugadorActual = 'X';
+            turnoIndice = 0;
+            turnoPtr = &jugadores[turnoIndice];
+            guardar(); // guardar tablero limpio
+            cout << "Partida nueva iniciada.\n\n";
+        } else {
+            cout << "Continuando la partida guardada.\n\n";
         }
+    } else {
+        // no habia guardado, creamos archivo base
+        guardar();
     }
-}
 
-// Guardar partida en archivo
-void Juego::guardarPartida() {
-    ofstream file(archivoGuardado);
-    if (file.is_open()) {
-        for (int i = 0; i < 9; i++) {
-            file << tablero->getCelda(i) << " ";
-        }
-        file << jugadorActual; // guardar turno actual
-        file.close();
-    }
-}
-
-// Ciclo principal del juego
-void Juego::jugar() {
-    bool jugando = true;
-
-    while (jugando) {
+    char ganador = ' ';
+    while (true) {
         tablero->mostrar();
-        cout << "Turno del jugador " << jugadorActual << endl;
-        cout << "Elige una posicion (1-9): ";
+        cout << "Turno del jugador " << *turnoPtr << ". Ingresa posicion (1-9) o 0 para guardar y salir: ";
 
         int pos;
-        cin >> pos;
-
-        if (pos < 1 || pos > 9) {
-            cout << "Posicion invalida. Intenta de nuevo.\n";
+        if (!(cin >> pos)) {
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+            cout << "Entrada invalida. Intenta con un numero entre 1 y 9 (o 0 para salir).\n";
             continue;
         }
 
-        // Intentar colocar la ficha
-        if (!tablero->colocarFicha(pos - 1, jugadorActual)) {
-            cout << "Esa posicion ya esta ocupada. Intenta otra.\n";
+        if (pos == 0) {
+            if (guardar()) cout << "Partida guardada. Puedes volver luego y continuar.\n";
+            else cout << "No se pudo guardar la partida.\n";
+            break;
+        }
+
+        // usar colocarFichaPos (1..9) que existe en Tablero.h
+        if (!tablero->colocarFichaPos(pos, *turnoPtr)) {
+            cout << "Movimiento invalido (posicion fuera de rango o ya ocupada). Intenta de nuevo.\n\n";
             continue;
         }
 
-        // Guardar el progreso
-        guardarPartida();
+        // guardar progreso despues de cada movimiento
+        if (!guardar()) cout << "Advertencia: no se pudo guardar el progreso.\n";
 
-        // Verificar ganador
-        char ganador = tablero->verificarGanador();
+        // comprobar ganador y empate
+        ganador = tablero->verificarGanador();
         if (ganador != ' ') {
             tablero->mostrar();
             cout << "¡El jugador " << ganador << " ha ganado! Felicidades.\n";
-            break; // termina juego, pero NO borra archivo
+            break;
         }
 
-        // Verificar empate
         if (tablero->tableroLleno()) {
             tablero->mostrar();
             cout << "¡Empate! No hay mas movimientos posibles.\n";
-            break; // termina juego, pero NO borra archivo
+            break;
         }
 
-        // Cambiar de jugador
-        jugadorActual = (jugadorActual == 'X') ? 'O' : 'X';
+        // cambiar turno
+        turnoIndice = (turnoIndice + 1) % 2;
+        turnoPtr = &jugadores[turnoIndice];
     }
-}
 
+    cout << "Gracias por jugar.\n";
+}
